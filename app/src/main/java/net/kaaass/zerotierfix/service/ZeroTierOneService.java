@@ -1,10 +1,12 @@
 package net.kaaass.zerotierfix.service;
 
+import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.VpnService;
 import android.os.Binder;
 import android.os.Build;
@@ -978,8 +980,15 @@ public class ZeroTierOneService extends VpnService implements Runnable, EventLis
                 .setContentText(getString(R.string.notification_text_connected, network.getNetworkIdStr()))
                 .setColor(ContextCompat.getColor(getApplicationContext(), R.color.zerotier_orange))
                 .setContentIntent(pendingIntent).build();
-        this.notificationManager.notify(ZT_NOTIFICATION_TAG, notification);
-        Log.i(TAG, "ZeroTier One Connected");
+        // Android 13 起需运行时授予通知权限，否则通知无法展示
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Notification permission not granted, skipping VPN notification");
+        } else {
+            this.notificationManager.notify(ZT_NOTIFICATION_TAG, notification);
+            Log.i(TAG, "ZeroTier One Connected");
+        }
 
         // 旧版本 Android 多播处理
         if (Build.VERSION.SDK_INT < 29) {

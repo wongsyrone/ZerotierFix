@@ -1,5 +1,6 @@
 package net.kaaass.zerotierfix.ui;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -9,6 +10,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.ConnectivityManager;
 import android.net.VpnService;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
@@ -135,6 +137,7 @@ public class NetworkListFragment extends Fragment {
         }
     };
     private ActivityResultLauncher<Intent> vpnAuthLauncher;
+    private ActivityResultLauncher<String> requestPermissionLauncher;
     private NetworkListModel viewModel;
 
     public NetworkListFragment() {
@@ -289,6 +292,36 @@ public class NetworkListFragment extends Fragment {
 
         // 获取 ViewModel
         this.viewModel = new ViewModelProvider(requireActivity()).get(NetworkListModel.class);
+
+        requestNotificationPermission();
+    }
+
+    /**
+     * 在 Android 13（API 33）及以上申请通知权限。
+     * <p>
+     * 未授予通知权限时，VPN 状态栏通知将无法显示。
+     */
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+        var preferences = PreferenceManager.getDefaultSharedPreferences(requireContext());
+        var state = NotificationsPermission.fromInt(preferences.getInt(
+                Constants.PREF_NOTIFICATIONS_PERMISSION,
+                NotificationsPermission.NOT_YET_ASKED.toInt()));
+        if (state != NotificationsPermission.NOT_YET_ASKED) {
+            // 已询问过，不再重复打扰用户
+            return;
+        }
+        requestPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                granted -> preferences.edit()
+                        .putInt(Constants.PREF_NOTIFICATIONS_PERMISSION,
+                                (granted != null && granted
+                                        ? NotificationsPermission.GRANTED_PERMISSION
+                                        : NotificationsPermission.DENIED_PERMISSION).toInt())
+                        .apply());
+        requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
     }
 
     @Override
