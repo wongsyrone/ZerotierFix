@@ -6,6 +6,7 @@ import net.kaaass.zerotierfix.util.IPPacketUtils;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashMap;
 
 // TODO: clear up
@@ -140,46 +141,47 @@ public class NDPTable {
 
     /* access modifiers changed from: package-private */
     public ByteBuffer getNeighborSolicitationPacket(InetAddress inetAddress, InetAddress inetAddress2, long j) {
+        // 先在堆内 byte[] 上构造报文：直接缓冲区不支持 array()，无法直接计算校验和
+        byte[] packet = new byte[72];
+        // 源地址
+        System.arraycopy(inetAddress.getAddress(), 0, packet, 0, 16);
+        // 目标地址
+        System.arraycopy(inetAddress2.getAddress(), 0, packet, 16, 16);
+        // 跳数限制 32
+        packet[32] = 0;
+        packet[33] = 0;
+        packet[34] = 0;
+        packet[35] = 32;
+        // ICMPv6 类型（135 请求）与代码（0）
+        packet[36] = 58;
+        packet[37] = -121;
+        // 再拷贝一次目标地址
+        System.arraycopy(inetAddress2.getAddress(), 0, packet, 38, 16);
+        // 保留字段
+        packet[54] = 1;
+        packet[55] = 1;
+        // 链路层地址（取 MAC 的后 6 字节）
+        byte[] macBytes = ByteBuffer.allocate(8).putLong(j).array();
+        System.arraycopy(macBytes, 2, packet, 56, 6);
+
+        // 计算 ICMPv6 校验和
+        short checksum = (short) IPPacketUtils.calculateChecksum(packet, 0, 0, 72);
+        packet[42] = (byte) (checksum >> 8);
+        packet[43] = (byte) checksum;
+
+        // 报文头部
+        Arrays.fill(packet, 0, 40, (byte) 0);
+        packet[0] = (byte) 96;
+        packet[4] = 0;
+        packet[5] = 32;
+        packet[6] = 58;
+        packet[7] = -1;
+        System.arraycopy(inetAddress.getAddress(), 0, packet, 8, 16);
+        System.arraycopy(inetAddress2.getAddress(), 0, packet, 24, 16);
+
+        // 转换为直接缓冲区，position/limit 均置于报文起点
         ByteBuffer buffer = ByteBuffer.allocateDirect(72);
-        buffer.put(inetAddress.getAddress(), 0, 16);
-        buffer.put(inetAddress2.getAddress(), 0, 16);
-        // Put 32 as an int (4 bytes)
-        buffer.putInt(32);
-        // Put 58 and -121 (2 bytes)
-        buffer.put((byte) 58);
-        buffer.put((byte) -121);
-        // Copy inetAddress2 again (16 bytes)
-        buffer.put(inetAddress2.getAddress(), 0, 16);
-        // Put j as a long (8 bytes)
-        ByteBuffer longBuffer = ByteBuffer.allocate(8).putLong(j);
-        longBuffer.flip(); // Prepare for reading
-        longBuffer.position(2); // Skip the first 2 bytes
-        buffer.put((byte) 1);
-        buffer.put((byte) 1);
-        buffer.put(longBuffer);
-        // Calculate and put checksum (2 bytes)
-        short checksum = (short) IPPacketUtils.calculateChecksum(buffer.array(), 0, 0, 72);
-        buffer.position(42);
-        buffer.putShort(checksum);
-        // Reset position for the next part
-        buffer.position(0);
-        // Fill the first 40 bytes with 0
-        for (int i = 0; i < 40; i++) {
-            buffer.put((byte) 0);
-        }
-        // Set the first byte to 96
-        buffer.put(0, (byte) 96);
-        // Put 32 as a short (2 bytes) at position 4
-        buffer.putShort(4, (short) 32);
-        // Put 58 and -1 at positions 6 and 7
-        buffer.put(6, (byte) 58);
-        buffer.put(7, (byte) -1);
-        // Copy inetAddress (16 bytes) at position 8
-        buffer.position(8);
-        buffer.put(inetAddress.getAddress());
-        // Copy inetAddress2 (16 bytes) at position 24
-        buffer.position(24);
-        buffer.put(inetAddress2.getAddress());
+        buffer.put(packet);
         buffer.rewind();
         return buffer;
     }
