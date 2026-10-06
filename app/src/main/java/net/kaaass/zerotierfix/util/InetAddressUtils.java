@@ -2,6 +2,8 @@ package net.kaaass.zerotierfix.util;
 
 import android.util.Log;
 
+import org.apache.commons.validator.routines.InetAddressValidator;
+
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -13,6 +15,8 @@ public class InetAddressUtils {
     public static final String TAG = "InetAddressUtils";
 
     public static final long BROADCAST_MAC_ADDRESS = 0xffffffffffffL;
+
+    private static final InetAddressValidator VALIDATOR = InetAddressValidator.getInstance();
 
     /**
      * 获得地址指定 CIDR 的子网掩码
@@ -83,5 +87,19 @@ public class InetAddressUtils {
             return 0;
         }
         return ByteBuffer.wrap(new byte[]{0, 0, 51, 51, -1, address[13], address[14], address[15]}).getLong();
+    }
+
+    /**
+     * 校验是否为合法的 IPv4 地址，空字符串视为合法（表示交由系统解析）
+     */
+    public static boolean isValidIPv4(String str) {
+        return str.isEmpty() || VALIDATOR.isValidInet4Address(str);
+    }
+
+    /**
+     * 校验是否为合法的 IPv6 地址，空字符串视为合法（表示交由系统解析）
+     */
+    public static boolean isValidIPv6(String str) {
+        return str.isEmpty() || VALIDATOR.isValidInet6Address(str);
     }
 }
