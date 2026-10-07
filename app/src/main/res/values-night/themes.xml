@@ -15,7 +15,5 @@
         <item name="greyText">@color/grey_text_night</item>
         <item name="lightGreyText">@color/light_grey_text_night</item>
         <item name="tableRowGrey">@color/table_row_grey_night</item>
-
-        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     </style>
 </resources>

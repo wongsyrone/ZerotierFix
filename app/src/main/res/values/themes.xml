@@ -15,21 +15,14 @@
         <item name="greyText">@color/grey_text</item>
         <item name="lightGreyText">@color/light_grey_text</item>
         <item name="tableRowGrey">@color/table_row_grey</item>
-
-        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     </style>
 
     <style name="Theme.ZerotierFix.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     </style>
 
-    <style name="Theme.ZerotierFix.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar">
-        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
-    </style>
+    <style name="Theme.ZerotierFix.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
 
-    <style name="Theme.ZerotierFix.PopupOverlay" parent="ThemeOverlay.AppCompat.Light">
-        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
-    </style>
+    <style name="Theme.ZerotierFix.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
 </resources>
