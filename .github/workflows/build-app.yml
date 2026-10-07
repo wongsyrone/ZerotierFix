@@ -14,6 +14,9 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,6 +45,23 @@ jobs:
       - name: Build APK
         run: ./gradlew :app:assembleRelease
 
+      # 产物名固定为 zerotierfix-<ZerotierFix 版本>-<上游 ZeroTier 版本>.apk
+      # 两个版本都从源码里读，tag 只是触发器，不参与命名，也不再校验。
+      - name: Rename APK
+        id: apk
+        run: |
+          set -eo pipefail
+          ZT_FIX_VER=$(sed -n 's/.*versionName "\([^"]*\)".*/\1/p' app/build.gradle)
+          ZT_VER=$(sed -n 's/^#define ZEROTIER_ONE_VERSION_\(MAJOR\|MINOR\|REVISION\) *\([0-9]*\).*/\2/p' externals/core/version.h | paste -sd. -)
+          if [ -z "$ZT_FIX_VER" ] || [ -z "$ZT_VER" ]; then
+            echo "::error::cannot resolve versions (ZerotierFix='$ZT_FIX_VER' ZeroTier='$ZT_VER')"
+            exit 1
+          fi
+          NAME="zerotierfix-${ZT_FIX_VER}-${ZT_VER}.apk"
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/${NAME}"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "ZerotierFix ${ZT_FIX_VER} / ZeroTier core ${ZT_VER} -> ${NAME}"
+
       - name: display dir tree
         run: |
           set -o pipefail
@@ -52,25 +72,27 @@ jobs:
         name: Upload APK
         with:
           name: App bundle
-          path: app/build/outputs/apk/release/app-release.apk
+          path: app/build/outputs/apk/release/${{ steps.apk.outputs.name }}
 
-      # 打 tag 时的版本号必须与 app/build.gradle 中声明的一致
-      - name: Verify tag matches versionName
+      # 仅在打 tag 时发布 GitHub Release；tag 可任意重打，删掉旧 Release/Tag 再 push 即可
+      # 产物名里带版本号，重打 tag 后文件名会变；旧名字的资产不会被同名覆盖，
+      # 所以先把这个 Release 上已有的资产删干净，避免新旧 APK 并存。
+      - name: Clean stale release assets
         if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION_NAME=$(grep -oP 'versionName\s+"\K[^"]+' app/build.gradle)
-          echo "build.gradle versionName: $VERSION_NAME"
-          echo "git tag: ${GITHUB_REF_NAME}"
-          if [ "$VERSION_NAME" != "${GITHUB_REF_NAME}" ]; then
-            echo "::error::tag ${GITHUB_REF_NAME} does not match versionName $VERSION_NAME"
-            exit 1
-          fi
+          set -eo pipefail
+          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' 2>/dev/null \
+            | while read -r a; do
+              echo "removing stale asset: $a"
+              gh release delete-asset "${GITHUB_REF_NAME}" "$a"
+            done || echo "no existing release for ${GITHUB_REF_NAME}"
 
-      # 仅在打 tag 时发布 GitHub Release
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/app-release.apk
+          files: app/build/outputs/apk/release/${{ steps.apk.outputs.name }}
           generate_release_notes: true
           fail_on_unmatched_files: true
